@@ -1,9 +1,7 @@
 # Build output (publish the exe through GitHub Releases instead)
+/yt-dlp-studio.exe
 /MP3Downloader.exe
 *.pdb
-
-# Generated from the Windows icon font at build time (see THIRD-PARTY-NOTICES.md)
-/src/app.ico
 
 # Tools downloaded at runtime
 /yt-dlp.exe
@@ -12,7 +10,9 @@
 ffmpeg-download.zip
 
 # Personal settings, caches, logs and downloads
+/yt-dlp-studio.settings
 /MP3Downloader.settings
 /yt-dlp-help.txt
-/MP3Downloader-error.log
+/*-error.log
 /mp3/
+/downloads/

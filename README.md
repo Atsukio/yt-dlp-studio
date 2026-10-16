@@ -1,14 +1,22 @@
-# MP3 Downloader
+<p align="center">
+  <img src="assets/logo.svg" width="112" alt="YT DLP Studio logo">
+</p>
 
-A small Windows app for downloading music (and video) from YouTube, SoundCloud, Bandcamp and the
-[thousands of other sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) that
-[yt-dlp](https://github.com/yt-dlp/yt-dlp) supports. Paste links, pick a format, press Download.
+<h1 align="center">YT DLP Studio</h1>
+
+<p align="center">
+  A friendly Windows app for <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a>: download music and video
+  from YouTube, SoundCloud, Bandcamp and the
+  <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">thousands of other sites</a> it supports.
+</p>
 
 > [!NOTE]
 > **This project is entirely vibe-coded.** I don't know C#. Every line was written by an AI
 > assistant ([Claude Code](https://claude.com/claude-code)) while I described what I wanted and
 > tested the result. I built it for my own use. You're welcome to use it, fork it or borrow from it,
 > but nobody with C# experience has reviewed it, and it comes with no warranty or support.
+>
+> YT DLP Studio is an independent project. It isn't made by, or affiliated with, the yt-dlp team.
 
 ## Features
 
@@ -24,8 +32,7 @@ A small Windows app for downloading music (and video) from YouTube, SoundCloud, 
 
 ## Getting started
 
-1. Download `MP3Downloader.exe` from the [Releases](https://github.com/Atsukio/yt-dlp-gui/releases)
-   page, or build it yourself (see below).
+1. Download `yt-dlp-studio.exe` from the [Releases](../../releases) page, or build it yourself (see below).
 2. Put it in its own folder and run it.
 3. On first run it downloads anything missing into that folder, from the tools' official GitHub
    releases:
@@ -48,25 +55,24 @@ No Visual Studio or SDK needed. The C# compiler that ships with Windows is enoug
 src\build.bat
 ```
 
-This produces `MP3Downloader.exe` in the repository root. The first build also generates
-`src\app.ico` from the Windows icon font.
+This produces `yt-dlp-studio.exe` in the repository root.
 
 | File | What it is |
 | --- | --- |
 | `src/MainWindow.xaml` | The whole interface: layout, styles, light/dark colours |
-| `src/Mp3Downloader.cs` | Everything else: running yt-dlp, the download queue, the options page, setup |
-| `src/make-icon.ps1` | Draws the app icon |
+| `src/YtDlpStudio.cs` | Everything else: running yt-dlp, the download queue, the options page, setup |
+| `src/make-icon.ps1` | Draws the logo and writes `assets/logo.svg`, `assets/logo.png` and `src/app.ico` |
 | `src/build.bat` | Builds the exe |
 
 ## Files the app creates
 
-These are created next to the exe, or in `%LOCALAPPDATA%\MP3Downloader` if that folder isn't writable:
+These are created next to the exe, or in `%LOCALAPPDATA%\yt-dlp-studio` if that folder isn't writable:
 
-- `MP3Downloader.settings`: your folder, format and options.
+- `yt-dlp-studio.settings`: your folder, format and options.
 - `yt-dlp-help.txt`: a cached copy of yt-dlp's option list.
 - `yt-dlp.exe` and `ffmpeg\`: only if the app downloaded them.
 
-Downloads go to the `mp3` folder next to the exe unless you choose another folder.
+Downloads go to the `downloads` folder next to the exe unless you choose another folder.
 
 ## Please use responsibly
 
@@ -80,11 +86,11 @@ copyright law where you live. This project isn't affiliated with YouTube or any 
   using the Windows builds from **[yt-dlp/FFmpeg-Builds](https://github.com/yt-dlp/FFmpeg-Builds)**. (LGPL/GPL; build scripts MIT)
 - **[imsyy/yt-dlp-gui](https://github.com/imsyy/yt-dlp-gui)** inspired the Home / Downloads design
   and the download cards. No code was copied. (MIT)
-- **Segoe Fluent Icons** by Microsoft, for the interface icons.
+- **Segoe Fluent Icons** by Microsoft, for the icons inside the interface.
 - Written by **[Claude Code](https://claude.com/claude-code)** (Anthropic).
 
 See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for the licence details.
 
 ## License
 
-[MIT](LICENSE) © 2026 Atsukio
+[MIT](LICENSE) © 2026 Atsukio. This covers the app's own code and its logo.

@@ -23,14 +23,20 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 
-[assembly: System.Reflection.AssemblyTitle("MP3 Downloader")]
-[assembly: System.Reflection.AssemblyProduct("MP3 Downloader")]
+[assembly: System.Reflection.AssemblyTitle("YT DLP Studio")]
+[assembly: System.Reflection.AssemblyProduct("YT DLP Studio")]
 [assembly: System.Reflection.AssemblyVersion("3.0.0.0")]
 // Opts in to .NET 4.8 behaviour, including OS-default TLS for downloading thumbnails.
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
-namespace Mp3Downloader
+namespace YtDlpStudio
 {
+    static class AppInfo
+    {
+        public const string Name = "YT DLP Studio";
+        public const string FileName = "yt-dlp-studio"; // settings, logs and the per-user tools folder
+    }
+
     public abstract class Observable : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
@@ -239,7 +245,7 @@ namespace Mp3Downloader
         public Controller(Window window)
         {
             w = window;
-            settingsPath = Path.Combine(appDir, "MP3Downloader.settings");
+            settingsPath = Path.Combine(appDir, AppInfo.FileName + ".settings");
             helpCachePath = Path.Combine(appDir, "yt-dlp-help.txt");
 
             urlBox = Find<TextBox>("UrlBox");
@@ -280,7 +286,7 @@ namespace Mp3Downloader
             ffIcon = Find<TextBlock>("FfIcon");
             ffStatus = Find<TextBlock>("FfStatus");
 
-            string localTools = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MP3Downloader");
+            string localTools = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppInfo.FileName);
             toolDirs = new[] { appDir, localTools };
             toolsDir = IsWritable(appDir) ? appDir : localTools;
             setupButton.Click += async delegate { await SetupMissingTools(); };
@@ -333,7 +339,20 @@ namespace Mp3Downloader
             grid.AddHandler(UIElement.PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler((s, e) => SelectRowFrom(e.OriginalSource as DependencyObject)), true);
             grid.AddHandler(UIElement.GotKeyboardFocusEvent, new KeyboardFocusChangedEventHandler((s, e) => SelectRowFrom(e.OriginalSource as DependencyObject)), true);
 
-            folderBox.Text = Path.Combine(appDir, "mp3");
+            folderBox.Text = Path.Combine(appDir, "downloads");
+            try
+            {
+                using (Stream s = typeof(Controller).Assembly.GetManifestResourceStream("logo.png"))
+                {
+                    var logo = new BitmapImage();
+                    logo.BeginInit();
+                    logo.StreamSource = s;
+                    logo.CacheOption = BitmapCacheOption.OnLoad;
+                    logo.EndInit();
+                    Find<Image>("LogoImage").Source = logo;
+                }
+            }
+            catch { } // header just shows no logo
             LoadSettings();
             UpdateFormatHint();
             UpdateCounts();
@@ -396,13 +415,13 @@ namespace Mp3Downloader
             string[] urls = urlBox.Text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             if (urls.Length == 0)
             {
-                MessageBox.Show(w, "Paste at least one link first.", "MP3 Downloader", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(w, "Paste at least one link first.", AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string folder = folderBox.Text.Trim();
             if (folder.Length == 0)
             {
-                MessageBox.Show(w, "Choose an output folder.", "MP3 Downloader", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(w, "Choose an output folder.", AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -411,14 +430,14 @@ namespace Mp3Downloader
             if (!settingUp && ytDlpExe == null)
             {
                 MessageBox.Show(w, "yt-dlp isn't installed yet. Use the Download button at the top of the Home page to get it.",
-                    "MP3 Downloader", MessageBoxButton.OK, MessageBoxImage.Information);
+                    AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             if (!settingUp && ffmpegDir == null && (f[1] != "custom" || embedCheck.IsChecked == true))
             {
                 MessageBox.Show(w, "Converting to " + f[2] + " needs ffmpeg, which isn't installed yet. " +
                     "Use the Download button at the top of the Home page to get it, or choose Custom.",
-                    "MP3 Downloader", MessageBoxButton.OK, MessageBoxImage.Information);
+                    AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -663,7 +682,7 @@ namespace Mp3Downloader
             if (ytDlpExe == null) { ShowMissingTools(); return; }
             if (running != null)
             {
-                MessageBox.Show(w, "yt-dlp can't be updated while a download is running.", "MP3 Downloader",
+                MessageBox.Show(w, "yt-dlp can't be updated while a download is running.", AppInfo.Name,
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -678,7 +697,7 @@ namespace Mp3Downloader
                 Log("Could not start yt-dlp: " + ex.Message);
                 versionText.Text = "yt-dlp.exe not found";
                 MessageBox.Show(w, "Could not find or start yt-dlp.exe.\nPut it next to this program or on your PATH.",
-                    "MP3 Downloader", MessageBoxButton.OK, MessageBoxImage.Error);
+                    AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
             updater = p;
@@ -880,7 +899,7 @@ namespace Mp3Downloader
             string part = dest + ".part";
             using (var wc = new WebClient())
             {
-                wc.Headers[HttpRequestHeader.UserAgent] = "MP3Downloader";
+                wc.Headers[HttpRequestHeader.UserAgent] = AppInfo.FileName;
                 wc.DownloadProgressChanged += (s, e) =>
                 {
                     bool known = e.TotalBytesToReceive > 0;
@@ -1139,7 +1158,7 @@ namespace Mp3Downloader
 
         void ClearOptions()
         {
-            if (MessageBox.Show(w, "Turn off all options and clear their values?", "MP3 Downloader",
+            if (MessageBox.Show(w, "Turn off all options and clear their values?", AppInfo.Name,
                     MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
             foreach (OptionRow r in rows) { r.Value = ""; r.Enabled = false; }
             optionState.Clear();
@@ -1164,7 +1183,7 @@ namespace Mp3Downloader
                 string v = r.Value.Trim();
                 if (r.TakesValue && v.Length == 0)
                 {
-                    MessageBox.Show(w, r.Name + " is enabled but needs a value (" + r.Metavar + ").", "MP3 Downloader",
+                    MessageBox.Show(w, r.Name + " is enabled but needs a value (" + r.Metavar + ").", AppInfo.Name,
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return false;
                 }
@@ -1201,7 +1220,7 @@ namespace Mp3Downloader
                 Directory.CreateDirectory(dir);
                 Process.Start("explorer.exe", Quote(dir));
             }
-            catch (Exception ex) { MessageBox.Show(w, ex.Message, "MP3 Downloader", MessageBoxButton.OK, MessageBoxImage.Error); }
+            catch (Exception ex) { MessageBox.Show(w, ex.Message, AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Error); }
         }
 
         static string Clean(string s)
@@ -1211,10 +1230,13 @@ namespace Mp3Downloader
 
         void LoadSettings()
         {
-            if (!File.Exists(settingsPath)) return;
+            // Settings from before the rename to YT DLP Studio; the next save writes the new file.
+            string legacy = Path.Combine(appDir, "MP3Downloader.settings");
+            string path = File.Exists(settingsPath) ? settingsPath : legacy;
+            if (!File.Exists(path)) return;
             try
             {
-                foreach (string line in File.ReadAllLines(settingsPath, Encoding.UTF8))
+                foreach (string line in File.ReadAllLines(path, Encoding.UTF8))
                 {
                     string[] f = line.Split('\t');
                     if (f.Length < 2) continue;
@@ -1263,8 +1285,8 @@ namespace Mp3Downloader
 
         public static bool SystemUsesDarkMode()
         {
-            // MP3DOWNLOADER_THEME=light|dark overrides the Windows setting.
-            string forced = Environment.GetEnvironmentVariable("MP3DOWNLOADER_THEME");
+            // YTDLP_STUDIO_THEME=light|dark overrides the Windows setting.
+            string forced = Environment.GetEnvironmentVariable("YTDLP_STUDIO_THEME");
             if (forced == "light" || forced == "dark") return forced == "dark";
             try
             {
@@ -1416,8 +1438,8 @@ namespace Mp3Downloader
             }
             catch (Exception ex)
             {
-                try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "MP3Downloader-error.log"), ex.ToString()); } catch { }
-                MessageBox.Show("MP3 Downloader failed to start:\n\n" + ex.Message, "MP3 Downloader", MessageBoxButton.OK, MessageBoxImage.Error);
+                try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppInfo.FileName + "-error.log"), ex.ToString()); } catch { }
+                MessageBox.Show(AppInfo.Name + " failed to start:\n\n" + ex.Message, AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

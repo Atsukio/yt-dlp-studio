@@ -1,7 +1,8 @@
 # Third-party notices
 
-MP3 Downloader is a front end. It does not include any third-party code or binaries in this
-repository or in the built `MP3Downloader.exe`. The tools below are found on your PC, or
+YT DLP Studio is an independent front end for yt-dlp; it is not made by or affiliated with the
+yt-dlp project. It does not include any third-party code or binaries in this repository or in the
+built `yt-dlp-studio.exe`. The tools below are found on your PC, or
 downloaded from their official releases on first run, and are run as separate programs.
 
 ## yt-dlp
@@ -40,6 +41,8 @@ license terms, including making its source code available.
 ## Segoe Fluent Icons
 
 - By Microsoft, installed with Windows 11 (falls back to Segoe MDL2 Assets on Windows 10).
-- Used for: the icons in the interface, drawn from the font already installed on the user's PC.
-  The font itself is not included. `src/make-icon.ps1` draws the app icon from it at build time,
-  so the generated `app.ico` is not committed to this repository.
+- Used for: the small icons inside the interface (buttons, navigation), drawn at runtime from the
+  font already installed on the user's PC. The font itself is not included.
+
+The app logo and icon (`assets/logo.svg`, `assets/logo.png`, `src/app.ico`) are original artwork,
+drawn from simple shapes by `src/make-icon.ps1`, and are covered by this project's MIT license.
