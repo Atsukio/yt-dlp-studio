@@ -25,8 +25,8 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("YT DLP Studio")]
 [assembly: System.Reflection.AssemblyProduct("YT DLP Studio")]
-[assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.0.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.0.0")]
 // Opts in to .NET 4.8 behaviour, including OS-default TLS for downloading thumbnails.
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
@@ -95,6 +95,17 @@ namespace YtDlpStudio
         }
 
         public event EventHandler EnabledChanged;
+    }
+
+    // An entry in a drop-down: a quality preset, or one of a video's actual formats.
+    public class Choice
+    {
+        public string Label, Value;   // Value: preset value or yt-dlp format id; null means "automatic"
+        public double Size;           // bytes, 0 when unknown
+        public double Rank, Rank2;    // for sorting formats: height and fps, or audio bitrate
+        public bool HasVideo, HasAudio;
+        public Choice(string label, string value) { Label = label; Value = value; }
+        public override string ToString() { return Label; }
     }
 
     public class SectionItem : Observable
@@ -183,15 +194,30 @@ namespace YtDlpStudio
         static readonly HashSet<string> Hidden = new HashSet<string> { "--help", "--version", "--update" };
         const string AllKey = "*all", EnabledKey = "*enabled";
 
-        // Format presets: radio button name, settings key, card label, yt-dlp arguments.
+        // Format presets: radio button name, settings key, card label. Their arguments come from FormatArgs().
         static readonly string[][] Formats =
         {
-            new[] { "FmtMp3", "mp3", "MP3", "-x --audio-format mp3 --audio-quality 0" },
-            new[] { "FmtM4a", "m4a", "M4A", "-x --audio-format m4a --audio-quality 0" },
-            new[] { "FmtFlac", "flac", "FLAC", "-x --audio-format flac" },
-            new[] { "FmtWav", "wav", "WAV", "-x --audio-format wav" },
-            new[] { "FmtVideo", "video", "MP4", "--merge-output-format mp4 --remux-video mp4 -S vcodec:h264,lang,quality,res,fps,hdr:12,acodec:aac" },
-            new[] { "FmtCustom", "custom", "CUSTOM", "" },
+            new[] { "FmtMp3", "mp3", "MP3" },
+            new[] { "FmtM4a", "m4a", "M4A" },
+            new[] { "FmtFlac", "flac", "FLAC" },
+            new[] { "FmtWav", "wav", "WAV" },
+            new[] { "FmtVideo", "video", "MP4" },
+            new[] { "FmtCustom", "custom", "CUSTOM" },
+        };
+
+        // Audio quality for lossy formats: --audio-quality value ("0" is the best VBR setting).
+        static readonly Choice[] AudioQualities =
+        {
+            new Choice("Best (VBR, ~245 kbps)", "0"), new Choice("320 kbps", "320K"), new Choice("256 kbps", "256K"),
+            new Choice("192 kbps", "192K"), new Choice("128 kbps", "128K"), new Choice("96 kbps", "96K"),
+        };
+        // Video quality: "" keeps the H.264-first sort that plays everywhere, "best" lets yt-dlp pick
+        // the best stream in any codec, and a number caps the height.
+        static readonly Choice[] VideoQualities =
+        {
+            new Choice("Best compatible (H.264, up to 1080p)", ""), new Choice("Best available (any codec)", "best"),
+            new Choice("Up to 2160p (4K)", "2160"), new Choice("Up to 1440p", "1440"), new Choice("Up to 1080p", "1080"),
+            new Choice("Up to 720p", "720"), new Choice("Up to 480p", "480"), new Choice("Up to 360p", "360"),
         };
 
         // Machine-readable output, so each video gets its own card with live progress.
@@ -242,6 +268,17 @@ namespace YtDlpStudio
         TextBlock setupIcon, setupTitle, setupDetail, setupButtonText, ytIcon, ytStatus, ffIcon, ffStatus;
         ProgressBar setupProgress;
         Button setupButton;
+
+        // Quality presets and the "Check formats" preview.
+        ComboBox audioQualityCombo, videoQualityCombo, previewVideoCombo, previewAudioCombo;
+        FrameworkElement audioQualityPanel, videoQualityPanel, previewVideoPanel, previewAudioPanel, previewFormats;
+        TextBlock qualityNote, previewTitle, previewMeta, previewStatus, previewSize, previewDuration;
+        Border previewCard, previewDurationPill;
+        System.Windows.Shapes.Rectangle previewThumb;
+        ProgressBar previewProgress;
+        Button checkButton;
+        string previewUrl;     // the link the preview card describes
+        bool previewReady;     // its formats have loaded
 
         public Controller(Window window)
         {
@@ -308,6 +345,37 @@ namespace YtDlpStudio
             }
             embedCheck.Checked += delegate { UpdateFormatHint(); };
             embedCheck.Unchecked += delegate { UpdateFormatHint(); };
+
+            audioQualityCombo = Find<ComboBox>("AudioQualityCombo");
+            videoQualityCombo = Find<ComboBox>("VideoQualityCombo");
+            previewVideoCombo = Find<ComboBox>("PreviewVideoCombo");
+            previewAudioCombo = Find<ComboBox>("PreviewAudioCombo");
+            audioQualityPanel = Find<FrameworkElement>("AudioQualityPanel");
+            videoQualityPanel = Find<FrameworkElement>("VideoQualityPanel");
+            previewVideoPanel = Find<FrameworkElement>("PreviewVideoPanel");
+            previewAudioPanel = Find<FrameworkElement>("PreviewAudioPanel");
+            previewFormats = Find<FrameworkElement>("PreviewFormats");
+            qualityNote = Find<TextBlock>("QualityNote");
+            previewTitle = Find<TextBlock>("PreviewTitle");
+            previewMeta = Find<TextBlock>("PreviewMeta");
+            previewStatus = Find<TextBlock>("PreviewStatus");
+            previewSize = Find<TextBlock>("PreviewSize");
+            previewDuration = Find<TextBlock>("PreviewDuration");
+            previewCard = Find<Border>("PreviewCard");
+            previewDurationPill = Find<Border>("PreviewDurationPill");
+            previewThumb = Find<System.Windows.Shapes.Rectangle>("PreviewThumb");
+            previewProgress = Find<ProgressBar>("PreviewProgress");
+            checkButton = Find<Button>("CheckButton");
+
+            audioQualityCombo.ItemsSource = AudioQualities;
+            audioQualityCombo.SelectedIndex = 0;
+            videoQualityCombo.ItemsSource = VideoQualities;
+            videoQualityCombo.SelectedIndex = 0;
+            foreach (ComboBox c in new[] { audioQualityCombo, videoQualityCombo, previewVideoCombo, previewAudioCombo })
+                c.SelectionChanged += delegate { UpdateFormatHint(); };
+            checkButton.Click += async delegate { await CheckFormats(); };
+            Find<Button>("PreviewClose").Click += delegate { HidePreview(); };
+            urlBox.TextChanged += delegate { OnLinksChanged(); };
 
             Find<Button>("DownloadButton").Click += delegate { StartDownload(); };
             Find<Button>("PasteButton").Click += delegate { PasteLinks(); };
@@ -391,13 +459,272 @@ namespace YtDlpStudio
             return formatKey == "wav" ? "--embed-metadata" : "--embed-thumbnail --embed-metadata";
         }
 
+        static bool IsAudioFormat(string key) { return key == "mp3" || key == "m4a" || key == "flac" || key == "wav"; }
+
+        static string ChoiceValue(ComboBox c)
+        {
+            var ch = c.SelectedItem as Choice;
+            return ch == null ? null : ch.Value;
+        }
+
+        // The yt-dlp arguments for a format preset, including the chosen quality.
+        string FormatArgs(string key)
+        {
+            string aq = ChoiceValue(audioQualityCombo) ?? "0";
+            switch (key)
+            {
+                case "mp3": return "-x --audio-format mp3 --audio-quality " + aq;
+                case "m4a": return "-x --audio-format m4a --audio-quality " + aq;
+                case "flac": return "-x --audio-format flac";
+                case "wav": return "-x --audio-format wav";
+                case "video":
+                    string vq = ChoiceValue(videoQualityCombo) ?? "";
+                    string sort = vq == "" ? " -S vcodec:h264,lang,quality,res,fps,hdr:12,acodec:aac"
+                        : vq == "best" ? ""
+                        : " -S res:" + vq + ",vcodec:h264,acodec:aac"; // highest up to the cap, H.264 when tied
+                    return "--merge-output-format mp4 --remux-video mp4" + sort;
+                default: return "";
+            }
+        }
+
         void UpdateFormatHint()
         {
-            string[] f = SelectedFormat();
-            string args = (f[3] + " " + EmbedArgs(f[1])).Trim();
-            formatHint.Text = f[1] == "custom" && args.Length == 0
+            string key = SelectedFormat()[1];
+            bool lossy = key == "mp3" || key == "m4a";
+            audioQualityPanel.Visibility = lossy ? Visibility.Visible : Visibility.Collapsed;
+            videoQualityPanel.Visibility = key == "video" ? Visibility.Visible : Visibility.Collapsed;
+            qualityNote.Text = lossy ? "Choosing more than the source's own bitrate (often about 130-160 kbps on YouTube) makes the file bigger, not better."
+                : key == "flac" || key == "wav" ? "Lossless: FLAC and WAV keep the full quality of the source, so there's no quality to choose."
+                : key == "video" ? "Best compatible plays on almost anything. Best available can pick VP9 or AV1, which some older players can't open."
+                : "";
+            qualityNote.Visibility = qualityNote.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+            UpdatePreviewPanels();
+
+            string args = (FormatArgs(key) + " " + EmbedArgs(key)).Trim();
+            string exact = PreviewFormatArg(key);
+            if (exact != null) args = (args + " -f " + exact).Trim();
+            formatHint.Text = key == "custom" && args.Length == 0
                 ? "No preset: only the settings on the Options page are used."
                 : args;
+        }
+
+        // ---------------------------------------------------------------- "Check formats" preview
+
+        string[] Links()
+        {
+            return urlBox.Text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        void OnLinksChanged()
+        {
+            string[] links = Links();
+            checkButton.IsEnabled = links.Length == 1;
+            // The preview only applies to the one link it was made for.
+            if (previewUrl != null && (links.Length != 1 || links[0] != previewUrl)) HidePreview();
+        }
+
+        void HidePreview()
+        {
+            previewUrl = null;
+            previewReady = false;
+            previewCard.Visibility = Visibility.Collapsed;
+            previewVideoCombo.ItemsSource = null;
+            previewAudioCombo.ItemsSource = null;
+            UpdateFormatHint();
+        }
+
+        async Task CheckFormats()
+        {
+            string[] links = Links();
+            if (links.Length != 1) return;
+            if (ytDlpExe == null)
+            {
+                MessageBox.Show(w, "yt-dlp isn't installed yet.", AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string url = links[0];
+            previewUrl = url;
+            previewReady = false;
+            previewCard.Visibility = Visibility.Visible;
+            previewTitle.Text = url;
+            previewMeta.Text = "";
+            previewStatus.Text = "Checking formats...";
+            previewStatus.Foreground = (Brush)w.Resources["SubText"];
+            previewProgress.Visibility = Visibility.Visible;
+            previewFormats.Visibility = Visibility.Collapsed;
+            previewDurationPill.Visibility = Visibility.Collapsed;
+            previewThumb.Fill = null;
+            checkButton.IsEnabled = false;
+
+            string json = null, error = null;
+            string exe = ytDlpExe;
+            await Task.Run(() =>
+            {
+                try { json = CaptureWithErrors(exe, "-J --no-playlist --no-warnings " + Quote(url), out error); }
+                catch (Exception ex) { error = ex.Message; }
+            });
+            checkButton.IsEnabled = Links().Length == 1;
+            if (previewUrl != url) return; // the link changed while we were waiting
+            previewProgress.Visibility = Visibility.Collapsed;
+
+            Dictionary<string, object> info = null;
+            try
+            {
+                if (!string.IsNullOrEmpty(json))
+                    info = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = int.MaxValue, RecursionLimit = 1000 }
+                        .DeserializeObject(json) as Dictionary<string, object>;
+            }
+            catch (Exception ex) { error = "Couldn't read yt-dlp's answer: " + ex.Message; }
+            if (info == null)
+            {
+                string msg = (error ?? "").Trim();
+                int i = msg.LastIndexOf("ERROR:", StringComparison.Ordinal);
+                previewStatus.Text = i >= 0 ? msg.Substring(i + 6).Trim() : msg.Length > 0 ? msg : "Couldn't get this link's formats.";
+                previewStatus.Foreground = (Brush)w.Resources["Danger"];
+                return;
+            }
+            ShowPreview(info);
+        }
+
+        void ShowPreview(Dictionary<string, object> info)
+        {
+            previewTitle.Text = Str(info, "title") ?? previewUrl;
+            var meta = new List<string>();
+            if (Str(info, "uploader") != null) meta.Add(Str(info, "uploader"));
+            double views = Num(info, "view_count");
+            if (views > 0) meta.Add(views.ToString("#,0", CultureInfo.InvariantCulture) + " views");
+            previewMeta.Text = string.Join("  ·  ", meta);
+            string duration = Str(info, "duration_string");
+            previewDuration.Text = duration != null && Regex.IsMatch(duration, @"^\d+$") ? "0:" + duration.PadLeft(2, '0') : duration;
+            previewDurationPill.Visibility = duration != null ? Visibility.Visible : Visibility.Collapsed;
+            ImageSource thumb = LoadThumb(Str(info, "thumbnail"), Str(info, "id"), Str(info, "extractor_key"));
+            previewThumb.Fill = thumb == null ? null : new ImageBrush(thumb) { Stretch = Stretch.UniformToFill };
+
+            if (Str(info, "_type") == "playlist")
+            {
+                object[] entries = Value(info, "entries") as object[];
+                previewStatus.Text = "This is a playlist" + (entries != null ? " of " + entries.Length + " videos" : "") +
+                    ". Exact formats can only be picked for a single video, so the quality settings below are used.";
+                return;
+            }
+
+            var videos = new List<Choice>();
+            var audios = new List<Choice>();
+            object[] formats = Value(info, "formats") as object[] ?? new object[0];
+            foreach (object o in formats)
+            {
+                var f = o as Dictionary<string, object>;
+                if (f == null || Str(f, "format_id") == null) continue;
+                string ext = Str(f, "ext") ?? "?";
+                string vcodec = Str(f, "vcodec"), acodec = Str(f, "acodec");
+                if (ext == "mhtml") continue; // storyboard images
+                bool hasVideo = vcodec != "none", hasAudio = acodec != "none";
+                double size = Num(f, "filesize") > 0 ? Num(f, "filesize") : Num(f, "filesize_approx");
+                // HLS streams often duplicate a regular format; label them so the two can be told apart.
+                string sizeText = ((Str(f, "protocol") ?? "").Contains("m3u8") ? "  ·  HLS" : "") + (size > 0 ? "  ·  " + Mb((long)size) : "");
+                if (hasVideo)
+                {
+                    double h = Num(f, "height"), fps = Num(f, "fps");
+                    string res = h > 0 ? h + "p" + (fps > 30 ? Math.Round(fps).ToString(CultureInfo.InvariantCulture) : "") : (Str(f, "format_note") ?? Str(f, "format_id"));
+                    string label = res + "  ·  " + ext + (vcodec != null ? " (" + vcodec.Split('.')[0] + ")" : "") +
+                        (hasAudio && acodec != null ? "  ·  with audio" : "") + sizeText;
+                    videos.Add(new Choice(label, Str(f, "format_id")) { Size = size, Rank = h, Rank2 = fps, HasVideo = true, HasAudio = hasAudio && acodec != null });
+                }
+                else if (hasAudio)
+                {
+                    double abr = Num(f, "abr") > 0 ? Num(f, "abr") : Num(f, "tbr");
+                    string note = Str(f, "format_note");
+                    string label = (abr > 0 ? Math.Round(abr) + " kbps" : note ?? Str(f, "format_id")) + "  ·  " + ext +
+                        (acodec != null ? " (" + acodec.Split('.')[0] + ")" : "") + (abr > 0 && note != null ? "  ·  " + note : "") + sizeText;
+                    audios.Add(new Choice(label, Str(f, "format_id")) { Size = size, Rank = abr, HasAudio = true });
+                }
+            }
+            // Best first: by resolution, then frame rate (or by bitrate for audio), then size.
+            Comparison<Choice> best = (a, b) =>
+                a.Rank != b.Rank ? b.Rank.CompareTo(a.Rank) : a.Rank2 != b.Rank2 ? b.Rank2.CompareTo(a.Rank2) : b.Size.CompareTo(a.Size);
+            videos.Sort(best);
+            audios.Sort(best);
+            videos.Insert(0, new Choice("Automatic (uses Video quality below)", null));
+            audios.Insert(0, new Choice("Automatic (best audio)", null));
+            previewVideoCombo.ItemsSource = videos;
+            previewAudioCombo.ItemsSource = audios;
+            previewVideoCombo.SelectedIndex = 0;
+            previewAudioCombo.SelectedIndex = 0;
+
+            previewStatus.Text = (videos.Count - 1) + " video and " + (audios.Count - 1) + " audio formats. " +
+                "Leave them on Automatic, or pick exact ones for this video.";
+            previewFormats.Visibility = Visibility.Visible;
+            previewReady = true;
+            UpdateFormatHint();
+        }
+
+        void UpdatePreviewPanels()
+        {
+            if (previewVideoPanel == null) return;
+            string key = SelectedFormat()[1];
+            // Audio formats only need an audio stream to convert from.
+            previewVideoPanel.Visibility = IsAudioFormat(key) ? Visibility.Collapsed : Visibility.Visible;
+            previewAudioPanel.Margin = IsAudioFormat(key) ? new Thickness(0) : new Thickness(6, 0, 0, 0);
+
+            var v = previewVideoCombo.SelectedItem as Choice;
+            var a = previewAudioCombo.SelectedItem as Choice;
+            double total = (IsAudioFormat(key) ? 0 : (v != null ? v.Size : 0)) + (a != null ? a.Size : 0);
+            bool picked = a != null && a.Value != null && (IsAudioFormat(key) || (v != null && v.Value != null));
+            bool known = picked && a.Size > 0 && (IsAudioFormat(key) || v.Size > 0);
+            previewSize.Text = !previewReady ? ""
+                : known ? "Estimated download size: " + Mb((long)total) + (IsAudioFormat(key) && key != "wav" ? " (before converting)" : "")
+                : picked ? "The site doesn't list a size for the selected format."
+                : "The size is shown once you pick exact formats.";
+        }
+
+        // The -f value for the formats picked in the preview, or null to let the presets decide.
+        string PreviewFormatArg(string key)
+        {
+            if (!previewReady) return null;
+            var v = previewVideoCombo.SelectedItem as Choice;
+            var a = previewAudioCombo.SelectedItem as Choice;
+            string vid = v != null ? v.Value : null, aud = a != null ? a.Value : null;
+            if (IsAudioFormat(key)) return aud;
+            if (vid == null && aud == null) return null;
+            if (vid != null && aud == null && v.HasAudio) return vid; // already has sound
+            return (vid ?? "bv*") + "+" + (aud ?? "ba");
+        }
+
+        static object Value(Dictionary<string, object> d, string key)
+        {
+            object v;
+            return d.TryGetValue(key, out v) ? v : null;
+        }
+
+        static string Str(Dictionary<string, object> d, string key)
+        {
+            object v = Value(d, key);
+            string s = v == null ? null : Convert.ToString(v, CultureInfo.InvariantCulture);
+            return string.IsNullOrEmpty(s) ? null : s;
+        }
+
+        static double Num(Dictionary<string, object> d, string key)
+        {
+            object v = Value(d, key);
+            try { return v == null ? 0 : Convert.ToDouble(v, CultureInfo.InvariantCulture); }
+            catch { return 0; }
+        }
+
+        // Runs yt-dlp and returns its output, also collecting what it wrote to stderr (for error messages).
+        string CaptureWithErrors(string exe, string args, out string errors)
+        {
+            var err = new StringBuilder();
+            using (Process p = NewProcess(args))
+            {
+                p.StartInfo.FileName = exe;
+                p.ErrorDataReceived += (s, e) => { if (e.Data != null) lock (err) err.AppendLine(e.Data); };
+                p.Start();
+                p.BeginErrorReadLine();
+                string text = p.StandardOutput.ReadToEnd();
+                p.WaitForExit();
+                lock (err) errors = err.ToString();
+                return text;
+            }
         }
 
         void PasteLinks()
@@ -444,9 +771,13 @@ namespace YtDlpStudio
 
             // Defaults first, so anything set on the Options page overrides them (yt-dlp uses the last value given).
             var args = new StringBuilder(MachineArgs.Trim());
-            if (f[3].Length > 0) args.Append(' ').Append(f[3]);
+            string preset = FormatArgs(f[1]);
+            if (preset.Length > 0) args.Append(' ').Append(preset);
             string embed = EmbedArgs(f[1]);
             if (embed.Length > 0) args.Append(' ').Append(embed);
+            // Exact formats picked under "Check formats" apply to that one link.
+            string exact = urls.Length == 1 && urls[0] == previewUrl ? PreviewFormatArg(f[1]) : null;
+            if (exact != null) args.Append(" -f ").Append(Quote(exact));
             args.Append(" -P ").Append(Quote(folder)).Append(" -o \"%(title)s.%(ext)s\"");
             if (!BuildOptionArgs(args)) return;
             string extra = extraBox.Text.Trim();
@@ -917,7 +1248,9 @@ namespace YtDlpStudio
 
         static string Mb(long bytes)
         {
-            return (bytes / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB";
+            return bytes >= 1073741824
+                ? (bytes / 1073741824.0).ToString("0.00", CultureInfo.InvariantCulture) + " GB"
+                : (bytes / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB";
         }
 
         // Keeps only the programs and DLLs from the archive's bin folder (ffplay isn't needed).
@@ -1224,6 +1557,12 @@ namespace YtDlpStudio
             catch (Exception ex) { MessageBox.Show(w, ex.Message, AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Error); }
         }
 
+        static void SelectChoice(ComboBox c, string value)
+        {
+            foreach (object o in c.Items)
+                if (o is Choice && ((Choice)o).Value == value) { c.SelectedItem = o; return; }
+        }
+
         static string Clean(string s)
         {
             return (s ?? "").Replace("\t", " ").Replace("\r", " ").Replace("\n", " ");
@@ -1246,6 +1585,8 @@ namespace YtDlpStudio
                     {
                         case "folder": folderBox.Text = f[1]; break;
                         case "format": if (formatButtons.TryGetValue(f[1], out rb)) rb.IsChecked = true; break;
+                        case "aq": SelectChoice(audioQualityCombo, f[1]); break;
+                        case "vq": SelectChoice(videoQualityCombo, f[1]); break;
                         case "preset": formatButtons[f[1] == "1" ? "mp3" : "custom"].IsChecked = true; break; // older settings files
                         case "embed": embedCheck.IsChecked = f[1] == "1"; break;
                         case "extra": extraBox.Text = f[1]; break;
@@ -1265,6 +1606,8 @@ namespace YtDlpStudio
                 {
                     "folder\t" + Clean(folderBox.Text),
                     "format\t" + SelectedFormat()[1],
+                    "aq\t" + ChoiceValue(audioQualityCombo),
+                    "vq\t" + ChoiceValue(videoQualityCombo),
                     "embed\t" + (embedCheck.IsChecked == true ? "1" : "0"),
                     "extra\t" + Clean(extraBox.Text)
                 };
@@ -1312,7 +1655,7 @@ namespace YtDlpStudio
                 { "Danger", "#FF99A4" }, { "DangerSoft", "#26FF99A4" }, { "DangerHover", "#40FF99A4" }, { "Success", "#6CCB5F" },
                 { "LogBg", "#59000000" }, { "LogText", "#D6FFFFFF" },
                 { "RowHover", "#0AFFFFFF" }, { "Selection", "#14FFFFFF" }, { "RowLine", "#0DFFFFFF" },
-                { "ScrollThumb", "#40FFFFFF" }
+                { "ScrollThumb", "#40FFFFFF" }, { "PopupBg", "#2C2C2C" }
             } : new Dictionary<string, string>
             {
                 { "WindowBg", "#F3F3F3" }, { "CardBg", "#B3FFFFFF" }, { "CardBorder", "#14000000" },
@@ -1323,7 +1666,7 @@ namespace YtDlpStudio
                 { "Danger", "#C42B1C" }, { "DangerSoft", "#1AC42B1C" }, { "DangerHover", "#2EC42B1C" }, { "Success", "#0F7B0F" },
                 { "LogBg", "#0A000000" }, { "LogText", "#E6000000" },
                 { "RowHover", "#08000000" }, { "Selection", "#0F000000" }, { "RowLine", "#0A000000" },
-                { "ScrollThumb", "#40000000" }
+                { "ScrollThumb", "#40000000" }, { "PopupBg", "#FFFFFF" }
             };
             foreach (var kv in c)
             {

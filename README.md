@@ -21,7 +21,11 @@
 ## Features
 
 - **Paste and go:** paste one or more links (or use *Paste from clipboard*) and press Download or Ctrl+Enter.
-- **Formats:** MP3 (best quality), M4A, FLAC, WAV, Video (MP4), or Custom (only your own options).
+- **Formats:** MP3, M4A, FLAC, WAV, Video (MP4), or Custom (only your own options).
+- **Quality:** choose the audio bitrate (Best, 320 down to 96 kbps) and the video quality (Best compatible,
+  Best available, or a cap from 4K down to 360p). This works for any number of links and for playlists.
+- **Check formats:** for a single link, see its thumbnail, title and every available video and audio
+  stream with its size, then pick exact ones. The estimated download size updates as you choose.
 - **Cover art and tags:** optionally embed the thumbnail and title/artist metadata.
 - **Download queue:** each video gets a card with its thumbnail, title, progress, speed, size and
   time left, plus buttons to cancel, retry, show the file in its folder or remove the card. Playlists get one card per video.

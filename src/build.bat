@@ -7,7 +7,7 @@ if not exist "%ROOT%\assets\logo.png" powershell -NoProfile -ExecutionPolicy Byp
 "%FW%\csc.exe" /nologo /target:winexe /optimize+ /out:"%ROOT%\yt-dlp-studio.exe" ^
   /win32icon:"%~dp0app.ico" /lib:"%FW%\WPF" ^
   /r:PresentationFramework.dll /r:PresentationCore.dll /r:WindowsBase.dll /r:System.Xaml.dll /r:System.Xml.dll ^
-  /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll ^
+  /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll ^
   /resource:"%~dp0MainWindow.xaml",MainWindow.xaml ^
   /resource:"%ROOT%\assets\logo.png",logo.png ^
   "%~dp0YtDlpStudio.cs"
