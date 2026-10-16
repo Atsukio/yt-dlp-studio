@@ -25,7 +25,8 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("YT DLP Studio")]
 [assembly: System.Reflection.AssemblyProduct("YT DLP Studio")]
-[assembly: System.Reflection.AssemblyVersion("3.0.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.0.0.0")]
 // Opts in to .NET 4.8 behaviour, including OS-default TLS for downloading thumbnails.
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 

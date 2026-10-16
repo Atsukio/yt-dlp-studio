@@ -1,0 +1,58 @@
+# Builds yt-dlp-studio.exe on every push and pull request.
+# Pushing a version tag (e.g. git tag v1.0.0 && git push origin v1.0.0) also publishes a GitHub Release
+# with the exe and its SHA-256 checksum attached.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        shell: cmd
+        run: src\build.bat
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          if (-not (Test-Path yt-dlp-studio.exe)) { throw "Build did not produce yt-dlp-studio.exe" }
+          $hash = (Get-FileHash yt-dlp-studio.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  yt-dlp-studio.exe" | Out-File -Encoding ascii yt-dlp-studio.exe.sha256
+          Get-Content yt-dlp-studio.exe.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yt-dlp-studio
+          path: |
+            yt-dlp-studio.exe
+            yt-dlp-studio.exe.sha256
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @'
+          **Download `yt-dlp-studio.exe`, put it in its own folder and run it.** On first run it downloads
+          yt-dlp and FFmpeg from their official GitHub releases if you don't already have them.
+
+          The exe isn't code-signed, so Windows SmartScreen may warn about it: click **More info → Run anyway**.
+          This exe was built by GitHub Actions from the source code in this tag; `yt-dlp-studio.exe.sha256`
+          holds its SHA-256 checksum.
+
+          Requires Windows 10 or 11.
+          '@
+          gh release create "${{ github.ref_name }}" yt-dlp-studio.exe yt-dlp-studio.exe.sha256 `
+            --title "YT DLP Studio ${{ github.ref_name }}" --notes $notes --generate-notes
